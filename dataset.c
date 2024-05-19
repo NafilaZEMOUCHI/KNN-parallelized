@@ -1,33 +1,5 @@
-#include <math.h>
+#include "instance.c"
 #include <stdio.h>
-typedef struct instance
-{
-    float sepalL;
-    float sepalW;
-    float petalL;
-    float petalW;
-    int irisType;
-} instance;
-
-void initInstance(instance* instance , float sepalL , float sepalW , float petalL , float petalW , int irisType){
-    (*instance).sepalL = sepalL;
-    (*instance).sepalW = sepalL;
-    (*instance).petalL = petalL;
-    (*instance).petalW= petalW;
-    (*instance).irisType = irisType;
-
-}
-double euclideanDistance(instance sourceInstance, instance neighboringInstance)
-{
-    double distance;
-    distance = pow((sourceInstance.sepalL - neighboringInstance.sepalL), 2);
-    distance += pow((sourceInstance.sepalW - neighboringInstance.sepalW), 2);
-    distance += pow((sourceInstance.petalL - neighboringInstance.petalL), 2);
-    distance += pow((sourceInstance.petalW - neighboringInstance.petalW), 2);
-    distance = sqrt(distance);
-    return distance;
-};
-
 int retrieveData(char fileName[], int nbInstances , instance dataset[] )
 {
     printf("%s", fileName);
@@ -73,3 +45,4 @@ int retrieveData(char fileName[], int nbInstances , instance dataset[] )
     
     return 0;
 };
+
