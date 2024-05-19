@@ -136,10 +136,10 @@ void *calculatingDistancesThreads(void *args)
     while (1)
     {
         sem_wait(mutex);
-        printf("nbinstances = %d\n",nbInstances);
+        //printf("nbinstances = %d\n",nbInstances);
         if ((*i) < nbInstances)
         {
-            printf("i = %d \n", *i);
+            //printf("i = %d \n", *i);
             
             neighboringClass neighboringClass;
             neighboringClass.irisType = dataset[*i].irisType;
@@ -155,7 +155,7 @@ void *calculatingDistancesThreads(void *args)
             break;
         }
     }
-    printf("out of loop\n");
+    //printf("out of loop\n");
     pthread_exit(0);
 }
 

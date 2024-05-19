@@ -1,7 +1,10 @@
 #include "neighboring.c"
+#include <time.h>
 #include "mpi.h"
-int knn(instance A, instance dataset[], int nbInstances, int nbClass, int k)
+double knn(instance A, instance dataset[], int nbInstances, int nbClass, int k)
 {
+    clock_t execTime;
+    execTime = clock();
     neighboringClass neighbors[1000];
     calculatingDistances(A, dataset, nbInstances, neighbors);
     printf("disntances:\n");
@@ -12,11 +15,17 @@ int knn(instance A, instance dataset[], int nbInstances, int nbClass, int k)
     classFrequency classFrequencyTable[3];
     frequencyOfNeighboringClass(neighbors, nbInstances, k, nbClass, classFrequencyTable);
     int class = modalClass(classFrequencyTable, nbClass);
-    return class;
+    execTime = clock() - execTime;
+    double duration = (double)execTime / CLOCKS_PER_SEC;
+    printf("execuction time = %lf", duration);
+    printf("class de l'instance = %d", class);
+    return duration;
 }
 
-int knnThreads(instance A, instance dataset[], int nbInstances, int nbClass, int k, int nbThreads)
+double knnThreads(int nbThreads, instance A, instance dataset[], int nbInstances, int nbClass, int k)
 {
+    clock_t execTime;
+    execTime = clock();
     neighboringClass neighbors[1000];
     sem_t mutex;
     sem_init(&mutex, 0, 1);
@@ -32,175 +41,296 @@ int knnThreads(instance A, instance dataset[], int nbInstances, int nbClass, int
         args.mutex = &mutex;
         args.nbInstances = nbInstances;
         args.neighbors = neighbors;
-        printf("creating thread %d", i);
+        // printf("creating thread %d", i);
         threads[i] = pthread_create(&threads[i], NULL, calculatingDistancesThreads, (void *)&args);
     }
     for (i = 0; i < nbThreads; i++)
     {
-        printf("waitingfor a thread\n");
+        // printf("waitingfor a thread\n");
         pthread_join(threads[i], NULL);
-        printf("the thread finished\n");
+        // printf("the thread finished\n");
     }
     sleep(1);
-    printf("disntances:\n");
-    printDistances(neighbors, nbInstances);
+    // printf("disntances:\n");
+    // printDistances(neighbors, nbInstances);
     sortNeighboringClasses(neighbors, nbInstances);
-    printf("sorted disntances\n");
-    printDistances(neighbors, nbInstances);
+    // printf("sorted disntances\n");
+    // printDistances(neighbors, nbInstances);
     classFrequency classFrequencyTable[3];
     frequencyOfNeighboringClass(neighbors, nbInstances, k, nbClass, classFrequencyTable);
     int class = modalClass(classFrequencyTable, nbClass);
-    return class;
+    execTime = clock() - execTime;
+    double duration = (double)execTime / CLOCKS_PER_SEC;
+    printf("execuction time = %lf", duration);
+    printf("class de l'instance = %d", class);
+    return duration;
 }
 
-void knnMPI(int argc , char* argv)
+double knnMPI(int argc, char **argv, instance testInstance, instance dataset[], int nbInstances, int nbClass, int k)
 {
     MPI_Init(&argc, &argv);
 
     // Get the number of processes and check only 2 processes are used
     int size;
     MPI_Comm_size(MPI_COMM_WORLD, &size);
-    if(size != 2)
-    {
-        printf("This application is meant to be run with 2 processes.\n");
-        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-    }
+
     MPI_Datatype MPI_Instance;
-    int lengths[3] = {1, 1, 1, 1, 1};
+    int lengthsInstance[5] = {1, 1, 1, 1, 1};
 
     // Calculate displacements
     // In C, by default padding can be inserted between fields. MPI_Get_address will allow
     // to get the address of each struct field and calculate the corresponding displacement
     // relative to that struct base address. The displacements thus calculated will therefore
     // include padding if any.
-    MPI_Aint displacements[5];
+    MPI_Aint displacementsI[5];
     instance Instance;
-    MPI_Aint base_address;
-    MPI_Get_address(&Instance, &base_address);
-    MPI_Get_address(&Instance.sepalL, &displacements[0]);
-    MPI_Get_address(&Instance.sepalW, &displacements[1]);
-    MPI_Get_address(&Instance.petalL, &displacements[2]);
-    MPI_Get_address(&Instance.petalW, &displacements[3]);
-    MPI_Get_address(&Instance.irisType, &displacements[4]);
-    displacements[0] = MPI_Aint_diff(displacements[0], base_address);
-    displacements[1] = MPI_Aint_diff(displacements[1], base_address);
-    displacements[2] = MPI_Aint_diff(displacements[2], base_address);
-    displacements[3] = MPI_Aint_diff(displacements[3], base_address);
-    displacements[4] = MPI_Aint_diff(displacements[4], base_address);
+    MPI_Aint base_addressI;
+    MPI_Get_address(&Instance, &base_addressI);
+    MPI_Get_address(&Instance.sepalL, &displacementsI[0]);
+    MPI_Get_address(&Instance.sepalW, &displacementsI[1]);
+    MPI_Get_address(&Instance.petalL, &displacementsI[2]);
+    MPI_Get_address(&Instance.petalW, &displacementsI[3]);
+    MPI_Get_address(&Instance.irisType, &displacementsI[4]);
+    displacementsI[0] = MPI_Aint_diff(displacementsI[0], base_addressI);
+    displacementsI[1] = MPI_Aint_diff(displacementsI[1], base_addressI);
+    displacementsI[2] = MPI_Aint_diff(displacementsI[2], base_addressI);
+    displacementsI[3] = MPI_Aint_diff(displacementsI[3], base_addressI);
+    displacementsI[4] = MPI_Aint_diff(displacementsI[4], base_addressI);
 
-    MPI_Datatype types[5] = {MPI_INT, MPI_INT, MPI_INT, MPI_INT, MPI_INT};
-    MPI_Type_create_struct(3, lengths, displacements, types, &MPI_Instance);
+    MPI_Datatype typesInstance[5] = {MPI_FLOAT, MPI_FLOAT, MPI_FLOAT, MPI_FLOAT, MPI_INT};
+    MPI_Type_create_struct(5, lengthsInstance, displacementsI, typesInstance, &MPI_Instance);
     MPI_Type_commit(&MPI_Instance);
-}
 
-/*
- * @brief Illustrates how to create an indexed MPI datatype.
- * @details This program is meant to be run with 2 processes: a sender and a
- * receiver. These two MPI processes will exchange a message made of a
- * structure representing a person.
- *
- * Structure of a person:
- * - age: int
- * - height: double
- * - name: char[10]
- *
- * How to represent such a structure with an MPI struct:
- *
- *           +----------------- displacement for
- *           |        block 2: sizeof(int) + sizeof(double)
- *           |               (+ potential padding)
- *           |                         |
- *           +----- displacement for   |
- *           |    block 2: sizeof(int) |
- *           |   (+ potential padding) |
- *           |            |            |
- *  displacement for      |            |
- *    block 1: 0          |            |
- * (+ potential padding)  |            |
- *           |            |            |
- *           V            V            V
- *           +------------+------------+------------+
- *           |     age    |   height   |    name    |
- *           +------------+------------+------------+
- *            <----------> <----------> <---------->
- *               block 1      block 2      block 3
- *              1 MPI_INT  1 MPI_DOUBLE  10 MPI_CHAR
- *
+    MPI_Datatype MPI_NeighboringClass;
+    int lengthsNC[2] = {1, 1};
 
-struct person_t
-{
-    int age;
-    double height;
-    char name[10];
-};
+    MPI_Aint displacementsNC[2];
+    neighboringClass neighboring_Class;
+    MPI_Aint base_addressNC;
+    MPI_Get_address(&neighboring_Class, &base_addressNC);
+    MPI_Get_address(&neighboring_Class.distance, &displacementsNC[0]);
+    MPI_Get_address(&neighboring_Class.irisType, &displacementsNC[1]);
+    displacementsNC[0] = MPI_Aint_diff(displacementsNC[0], base_addressNC);
+    displacementsNC[1] = MPI_Aint_diff(displacementsNC[1], base_addressNC);
 
-int main(int argc, char* argv[])
-{
-    MPI_Init(&argc, &argv);
+    MPI_Datatype typesNC[2] = {MPI_DOUBLE, MPI_INT};
+    MPI_Type_create_struct(2, lengthsNC, displacementsNC, typesNC, &MPI_NeighboringClass);
+    MPI_Type_commit(&MPI_NeighboringClass);
 
-    // Get the number of processes and check only 2 processes are used
-    int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-    if(size != 2)
-    {
-        printf("This application is meant to be run with 2 processes.\n");
-        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-    }
-
-    // Create the datatype
-    MPI_Datatype person_type;
-    int lengths[3] = { 1, 1, 10 };
-
-    // Calculate displacements
-    // In C, by default padding can be inserted between fields. MPI_Get_address will allow
-    // to get the address of each struct field and calculate the corresponding displacement
-    // relative to that struct base address. The displacements thus calculated will therefore
-    // include padding if any.
-    MPI_Aint displacements[3];
-    struct person_t dummy_person;
-    MPI_Aint base_address;
-    MPI_Get_address(&dummy_person, &base_address);
-    MPI_Get_address(&dummy_person.age, &displacements[0]);
-    MPI_Get_address(&dummy_person.height, &displacements[1]);
-    MPI_Get_address(&dummy_person.name[0], &displacements[2]);
-    displacements[0] = MPI_Aint_diff(displacements[0], base_address);
-    displacements[1] = MPI_Aint_diff(displacements[1], base_address);
-    displacements[2] = MPI_Aint_diff(displacements[2], base_address);
-
-    MPI_Datatype types[3] = { MPI_INT, MPI_DOUBLE, MPI_CHAR };
-    MPI_Type_create_struct(3, lengths, displacements, types, &person_type);
-    MPI_Type_commit(&person_type);
-
-    // Get my rank and do the corresponding job
-    enum rank_roles { SENDER, RECEIVER };
     int my_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-    switch(my_rank)
+    int length = nbInstances / size;
+    int send_count[size];
+    int dataset_displacements[size];
+    int i;
+    for (i = 0; i < size - 1; i++)
     {
-        case SENDER:
+        send_count[i] = length;
+        dataset_displacements[i] = length * i;
+    }
+    if (nbInstances % size == 0)
+    {
+        send_count[i] = length;
+        dataset_displacements[i] = length * i;
+    }
+    else
+    {
+        send_count[i] = length + nbInstances % size;
+        dataset_displacements[i] = length * i;
+    }
+    switch (my_rank)
+    {
+    case 0:
+    {
+
+        // printf("scaterring the dataset\n");
+        instance scatteredNeighbors[send_count[my_rank]];
+        neighboringClass neighbors[nbInstances];
+        double start = MPI_Wtime();
+        MPI_Scatterv(dataset, send_count, dataset_displacements, MPI_Instance, scatteredNeighbors, send_count[my_rank], MPI_Instance, 0, MPI_COMM_WORLD);
+        /*
+        printf("\n\n number of instances in the scatterd dataset : %d from 0 \n\n", send_count[my_rank]);
+        for (int i = 0; i < send_count[my_rank]; i++)
         {
-            // Send the message
-            struct person_t buffer;
-            buffer.age = 20;
-            buffer.height = 1.83;
-            strncpy(buffer.name, "Tom", 9);
-            buffer.name[9] = '\0';
-            printf("MPI process %d sends person:\n\t- age = %d\n\t- height = %f\n\t- name = %s\n", my_rank, buffer.age, buffer.height, buffer.name);
-            MPI_Send(&buffer, 1, person_type, RECEIVER, 0, MPI_COMM_WORLD);
-            break;
+            printf("%d :  %f %f %f %f %d\n", i + 1, scatteredNeighbors[i].sepalL, scatteredNeighbors[i].sepalW, scatteredNeighbors[i].petalL, scatteredNeighbors[i].petalW, scatteredNeighbors[i].irisType);
         }
-        case RECEIVER:
+        */
+        neighboringClass gatheredNeighboringClass[send_count[my_rank]];
+        calculatingDistances(testInstance, scatteredNeighbors, send_count[my_rank], gatheredNeighboringClass);
+        sortNeighboringClasses(gatheredNeighboringClass, send_count[my_rank]);
+        // printDistances(gatheredNeighboringClass, send_count[my_rank]);
+        //  MPI_Gatherv(&my_value, 1, MPI_INT, buffer, counts, displacements, MPI_INT, root_rank, MPI_COMM_WORLD);
+        MPI_Gatherv(gatheredNeighboringClass, send_count[my_rank], MPI_NeighboringClass, neighbors, send_count, dataset_displacements, MPI_NeighboringClass, 0, MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
+        // printDistances(neighbors , nbInstances);
+        classFrequency classFrequencyTable[3];
+        frequencyOfNeighboringClass(neighbors, nbInstances, k, nbClass, classFrequencyTable);
+        int class = modalClass(classFrequencyTable, nbClass);
+        double end = MPI_Wtime();
+        double duration = end - start;
+        printf("execuction time = %lf", duration);
+        printf("class de l'instance = %d", class);
+        break;
+    }
+    default:
+    {
+        // Receive the message
+        instance scatteredNeighbors[send_count[my_rank]];
+        MPI_Scatterv(NULL, NULL, NULL, MPI_Instance, scatteredNeighbors, send_count[my_rank], MPI_Instance, 0, MPI_COMM_WORLD);
+        /*
+        int i;
+        printf("\n\n number of instances in the scatterd dataset : %d  from 0\n\n", send_count[my_rank]);
+        for (int i = 0; i < send_count[my_rank]; i++)
         {
-            // Receive the message
-            struct person_t received;
-            MPI_Recv(&received, 1, person_type, SENDER, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            printf("MPI process %d received person:\n\t- age = %d\n\t- height = %f\n\t- name = %s\n", my_rank, received.age, received.height, received.name);
-            break;
+            printf("%d :  %f %f %f %f %d\n", i + 1, scatteredNeighbors[i].sepalL, scatteredNeighbors[i].sepalW, scatteredNeighbors[i].petalL, scatteredNeighbors[i].petalW, scatteredNeighbors[i].irisType);
         }
+        */
+        neighboringClass gatheredNeighboringClass[send_count[my_rank]];
+        calculatingDistances(testInstance, scatteredNeighbors, send_count[my_rank], gatheredNeighboringClass);
+        sortNeighboringClasses(gatheredNeighboringClass, send_count[my_rank]);
+        // printDistances(gatheredNeighboringClass , send_count[my_rank]);
+        MPI_Gatherv(gatheredNeighboringClass, send_count[my_rank], MPI_NeighboringClass, NULL, NULL, NULL, MPI_NeighboringClass, 0, MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
+        break;
+    }
     }
 
     MPI_Finalize();
+    int done_already;
 
-    return EXIT_SUCCESS;
+    return 0;
 }
-*/
+double knnMPIFforPlot(int argc, char **argv, instance testInstance, instance dataset[], int nbInstances, int nbClass, int k, int nbProc, double duration[])
+{
+    MPI_Init(&argc, &argv);
+
+    {
+        // Get the number of processes and check only 2 processes are used
+        int size;
+        MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+        MPI_Datatype MPI_Instance;
+        int lengthsInstance[5] = {1, 1, 1, 1, 1};
+
+        // Calculate displacements
+        // In C, by default padding can be inserted between fields. MPI_Get_address will allow
+        // to get the address of each struct field and calculate the corresponding displacement
+        // relative to that struct base address. The displacements thus calculated will therefore
+        // include padding if any.
+        MPI_Aint displacementsI[5];
+        instance Instance;
+        MPI_Aint base_addressI;
+        MPI_Get_address(&Instance, &base_addressI);
+        MPI_Get_address(&Instance.sepalL, &displacementsI[0]);
+        MPI_Get_address(&Instance.sepalW, &displacementsI[1]);
+        MPI_Get_address(&Instance.petalL, &displacementsI[2]);
+        MPI_Get_address(&Instance.petalW, &displacementsI[3]);
+        MPI_Get_address(&Instance.irisType, &displacementsI[4]);
+        displacementsI[0] = MPI_Aint_diff(displacementsI[0], base_addressI);
+        displacementsI[1] = MPI_Aint_diff(displacementsI[1], base_addressI);
+        displacementsI[2] = MPI_Aint_diff(displacementsI[2], base_addressI);
+        displacementsI[3] = MPI_Aint_diff(displacementsI[3], base_addressI);
+        displacementsI[4] = MPI_Aint_diff(displacementsI[4], base_addressI);
+
+        MPI_Datatype typesInstance[5] = {MPI_FLOAT, MPI_FLOAT, MPI_FLOAT, MPI_FLOAT, MPI_INT};
+        MPI_Type_create_struct(5, lengthsInstance, displacementsI, typesInstance, &MPI_Instance);
+        MPI_Type_commit(&MPI_Instance);
+
+        MPI_Datatype MPI_NeighboringClass;
+        int lengthsNC[2] = {1, 1};
+
+        MPI_Aint displacementsNC[2];
+        neighboringClass neighboring_Class;
+        MPI_Aint base_addressNC;
+        MPI_Get_address(&neighboring_Class, &base_addressNC);
+        MPI_Get_address(&neighboring_Class.distance, &displacementsNC[0]);
+        MPI_Get_address(&neighboring_Class.irisType, &displacementsNC[1]);
+        displacementsNC[0] = MPI_Aint_diff(displacementsNC[0], base_addressNC);
+        displacementsNC[1] = MPI_Aint_diff(displacementsNC[1], base_addressNC);
+
+        MPI_Datatype typesNC[2] = {MPI_DOUBLE, MPI_INT};
+        MPI_Type_create_struct(2, lengthsNC, displacementsNC, typesNC, &MPI_NeighboringClass);
+        MPI_Type_commit(&MPI_NeighboringClass);
+
+        int my_rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+        int length = nbInstances / size;
+        int send_count[size];
+        int dataset_displacements[size];
+        int i;
+        for (i = 0; i < size - 1; i++)
+        {
+            send_count[i] = length;
+            dataset_displacements[i] = length * i;
+        }
+        if (nbInstances % size == 0)
+        {
+            send_count[i] = length;
+            dataset_displacements[i] = length * i;
+        }
+        else
+        {
+            send_count[i] = length + nbInstances % size;
+            dataset_displacements[i] = length * i;
+        }
+        switch (my_rank)
+        {
+        case 0:
+        {
+
+            // printf("scaterring the dataset\n");
+            instance scatteredNeighbors[send_count[my_rank]];
+            neighboringClass neighbors[nbInstances];
+            double start = MPI_Wtime();
+            MPI_Scatterv(dataset, send_count, dataset_displacements, MPI_Instance, scatteredNeighbors, send_count[my_rank], MPI_Instance, 0, MPI_COMM_WORLD);
+            /*
+            printf("\n\n number of instances in the scatterd dataset : %d from 0 \n\n", send_count[my_rank]);
+            for (int i = 0; i < send_count[my_rank]; i++)
+            {
+                printf("%d :  %f %f %f %f %d\n", i + 1, scatteredNeighbors[i].sepalL, scatteredNeighbors[i].sepalW, scatteredNeighbors[i].petalL, scatteredNeighbors[i].petalW, scatteredNeighbors[i].irisType);
+            }
+            */
+            neighboringClass gatheredNeighboringClass[send_count[my_rank]];
+            calculatingDistances(testInstance, scatteredNeighbors, send_count[my_rank], gatheredNeighboringClass);
+            sortNeighboringClasses(gatheredNeighboringClass, send_count[my_rank]);
+            // printDistances(gatheredNeighboringClass, send_count[my_rank]);
+            //  MPI_Gatherv(&my_value, 1, MPI_INT, buffer, counts, displacements, MPI_INT, root_rank, MPI_COMM_WORLD);
+            MPI_Gatherv(gatheredNeighboringClass, send_count[my_rank], MPI_NeighboringClass, neighbors, send_count, dataset_displacements, MPI_NeighboringClass, 0, MPI_COMM_WORLD);
+            MPI_Barrier(MPI_COMM_WORLD);
+            // printDistances(neighbors , nbInstances);
+            classFrequency classFrequencyTable[3];
+            frequencyOfNeighboringClass(neighbors, nbInstances, k, nbClass, classFrequencyTable);
+            int class = modalClass(classFrequencyTable, nbClass);
+            double end = MPI_Wtime();
+            duration[i] = end - start;
+            printf("execuction time = %lf", *duration);
+            printf("class de l'instance = %d", class);
+            break;
+        }
+        default:
+        {
+            // Receive the message
+            instance scatteredNeighbors[send_count[my_rank]];
+            MPI_Scatterv(NULL, NULL, NULL, MPI_Instance, scatteredNeighbors, send_count[my_rank], MPI_Instance, 0, MPI_COMM_WORLD);
+            /*
+            int i;
+            printf("\n\n number of instances in the scatterd dataset : %d  from 0\n\n", send_count[my_rank]);
+            for (int i = 0; i < send_count[my_rank]; i++)
+            {
+                printf("%d :  %f %f %f %f %d\n", i + 1, scatteredNeighbors[i].sepalL, scatteredNeighbors[i].sepalW, scatteredNeighbors[i].petalL, scatteredNeighbors[i].petalW, scatteredNeighbors[i].irisType);
+            }
+            */
+            neighboringClass gatheredNeighboringClass[send_count[my_rank]];
+            calculatingDistances(testInstance, scatteredNeighbors, send_count[my_rank], gatheredNeighboringClass);
+            sortNeighboringClasses(gatheredNeighboringClass, send_count[my_rank]);
+            // printDistances(gatheredNeighboringClass , send_count[my_rank]);
+            MPI_Gatherv(gatheredNeighboringClass, send_count[my_rank], MPI_NeighboringClass, NULL, NULL, NULL, MPI_NeighboringClass, 0, MPI_COMM_WORLD);
+            MPI_Barrier(MPI_COMM_WORLD);
+            break;
+        }
+        }
+    }
+    MPI_Finalize();
+
+    return 0;
+}
