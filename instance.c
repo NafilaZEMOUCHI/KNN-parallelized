@@ -20,11 +20,11 @@ void initInstance(instance* instance , float sepalL , float sepalW , float petal
 double euclideanDistance(instance sourceInstance, instance neighboringInstance)
 {
     double distance;
-    distance = pow((sourceInstance.sepalL - neighboringInstance.sepalL), 2);
-    distance += pow((sourceInstance.sepalW - neighboringInstance.sepalW), 2);
-    distance += pow((sourceInstance.petalL - neighboringInstance.petalL), 2);
-    distance += pow((sourceInstance.petalW - neighboringInstance.petalW), 2);
-    distance = sqrt(distance);
+    distance = (sourceInstance.sepalL - neighboringInstance.sepalL)*(sourceInstance.sepalL - neighboringInstance.sepalL);
+    distance += (sourceInstance.sepalW - neighboringInstance.sepalW)*(sourceInstance.sepalW - neighboringInstance.sepalW);
+    distance += (sourceInstance.petalL - neighboringInstance.petalL)*(sourceInstance.petalL - neighboringInstance.petalL);
+    distance += (sourceInstance.petalW - neighboringInstance.petalW)*(sourceInstance.petalW - neighboringInstance.petalW);
+    
     return distance;
 };
 

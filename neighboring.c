@@ -1,5 +1,9 @@
 #include <stdio.h>
 #include "instance.c"
+#include <pthread.h>
+#include <semaphore.h>
+#include <stdlib.h>
+#include <unistd.h>
 // structure representing the class of the instance that has the distance 'distance'
 typedef struct
 {
@@ -106,16 +110,61 @@ void calculatingDistances(instance A, instance dataset[], int nbInstances, neigh
     {
         neighboringClass.irisType = dataset[i].irisType;
         neighboringClass.distance = euclideanDistance(A, dataset[i]);
-        neighbors[i]=neighboringClass;
+        neighbors[i] = neighboringClass;
     }
 }
+typedef struct threadArg
+{
+    instance A;
+    instance *dataset;
+    int nbInstances;
+    neighboringClass *neighbors;
+    sem_t *mutex;
+    int *i;
+} threadArg;
 
-void printDistances(neighboringClass neighbors[] , int nbInstances)
+void *calculatingDistancesThreads(void *args)
+{
+    threadArg *Args = (threadArg *)args;
+    instance A = Args->A;
+    instance *dataset = Args->dataset;
+    int nbInstances = Args->nbInstances;
+    neighboringClass *neighbors = Args->neighbors;
+    sem_t *mutex = Args->mutex;
+    int *i = Args->i;
+
+    while (1)
+    {
+        sem_wait(mutex);
+        printf("nbinstances = %d\n",nbInstances);
+        if ((*i) < nbInstances)
+        {
+            printf("i = %d \n", *i);
+            
+            neighboringClass neighboringClass;
+            neighboringClass.irisType = dataset[*i].irisType;
+            neighboringClass.distance = euclideanDistance(A, dataset[*i]);
+            neighbors[*i] = neighboringClass;
+            (*i)++;
+            
+            sem_post(mutex);
+        }
+        else
+        {
+            sem_post(mutex);            
+            break;
+        }
+    }
+    printf("out of loop\n");
+    pthread_exit(0);
+}
+
+void printDistances(neighboringClass neighbors[], int nbInstances)
 {
     int i;
-    for(i=0;i<nbInstances;i++)
+    for (i = 0; i < nbInstances; i++)
     {
-        printf("(%d ; %lf) \n", neighbors[i].irisType , neighbors[i].distance );
+        printf("(%d ; %lf) \n", neighbors[i].irisType, neighbors[i].distance);
     }
 }
 void swap(neighboringClass *xp, neighboringClass *yp)
@@ -177,7 +226,7 @@ void frequencyOfNeighboringClass(neighboringClass sortedNeighbors[], int nbNeigh
     int i, j;
     for (i = 0; i < nbClass; i++)
     {
-        classFrequencyTable[i].irisType=i+1;
+        classFrequencyTable[i].irisType = i + 1;
         for (j = 0; j < k; j++)
         {
             if (sortedNeighbors[j].irisType == i)
